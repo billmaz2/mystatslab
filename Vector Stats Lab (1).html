@@ -1,0 +1,749 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Vector Stats Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: one column workbench. Three inputs on top, then summary, histograms, correlation, distribution fits, QQ plot, each in its own panel. */
+:root {
+  --bg: #f2f5f7;
+  --surface: #ffffff;
+  --fg: #13202b;
+  --muted: #566775;
+  --line: #d8e0e6;
+  --soft: #e9eef2;
+  --accent: #0b6e69;
+  --accent-fg: #ffffff;
+  --cx: #2057a7;
+  --cy: #c4561b;
+  --cz: #7a3fa8;
+  --fit: #d12f6a;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-head: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1318; --surface: #151d24; --fg: #e4ebf0; --muted: #93a4b1; --line: #2a3743; --soft: #1d2831;
+    --accent: #3cc4bb; --accent-fg: #06201e; --cx: #6ea2f0; --cy: #f2955c; --cz: #b88ae6; --fit: #ff6f9f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1318; --surface: #151d24; --fg: #e4ebf0; --muted: #93a4b1; --line: #2a3743; --soft: #1d2831;
+  --accent: #3cc4bb; --accent-fg: #06201e; --cx: #6ea2f0; --cy: #f2955c; --cz: #b88ae6; --fit: #ff6f9f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-ui); font-size: 14px; line-height: 1.5;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+h1, h2 { font-family: var(--font-head); font-weight: 600; margin: 0; text-wrap: balance; }
+h1 { font-size: 26px; letter-spacing: -0.01em; }
+h2 { font-size: 18px; }
+p { margin: 0; }
+.lede { color: var(--muted); max-width: 70ch; margin-top: 6px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.hint { color: var(--muted); font-size: 12.5px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 900px) { .grid3 { grid-template-columns: minmax(0, 1fr); } .grid2 { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 640px) and (max-width: 900px) { .grid3.cols-tablet { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; }
+.count { font-family: var(--font-mono); font-weight: 400; font-size: 12px; color: var(--muted); }
+textarea {
+  width: 100%; min-height: 128px; resize: vertical; padding: 10px 12px;
+  font: 400 13px/1.5 var(--font-mono); color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px;
+}
+textarea:focus-visible, select:focus-visible, input:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button, select, input[type=number] {
+  font: 500 13px var(--font-ui); color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px;
+}
+button { cursor: pointer; }
+button:hover { background: var(--soft); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.primary:hover { filter: brightness(1.08); }
+input[type=number] { width: 84px; }
+.ctl { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.tablewrap { overflow-x: auto; max-width: 100%; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 7px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+td { font-family: var(--font-mono); font-size: 13px; }
+td:first-child { font-family: var(--font-ui); font-size: 13.5px; }
+tbody tr:last-child td { border-bottom: 0; }
+.fits td.name, .fits th.name { text-align: left; }
+.fits td.params { text-align: left; color: var(--muted); font-size: 12px; }
+.fits tbody tr { cursor: pointer; }
+.fits tbody tr:hover td { background: var(--soft); }
+.fits tbody tr.sel td { background: var(--soft); }
+.fits tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--fit); }
+.fits tr.na td { color: var(--muted); cursor: default; }
+.badge { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 10px; font: 600 10.5px var(--font-ui); letter-spacing: 0.04em; text-transform: uppercase; background: var(--accent); color: var(--accent-fg); }
+.wbar { display: inline-block; vertical-align: middle; height: 6px; background: var(--accent); border-radius: 3px; margin-right: 6px; opacity: 0.85; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs button { border-radius: 6px; }
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.chart { width: 100%; min-width: 0; }
+.chart svg { display: block; max-width: 100%; }
+.chart .gl { stroke: var(--line); stroke-width: 1; }
+.chart .ax { stroke: var(--muted); stroke-width: 1; }
+.chart .tk { fill: var(--muted); font: 11px var(--font-mono); }
+.chart .al { fill: var(--muted); font: 500 12px var(--font-ui); }
+.caption { font-size: 12.5px; color: var(--muted); font-family: var(--font-mono); margin-top: 4px; overflow-wrap: anywhere; }
+.chart-title { font-weight: 600; display: flex; align-items: center; margin-bottom: 4px; }
+.empty { color: var(--muted); padding: 28px 8px; text-align: center; border: 1px dashed var(--line); border-radius: 6px; }
+.cm td, .cm th { text-align: center; }
+.cm td { padding: 10px 14px; }
+.cm .r2 { display: block; color: var(--muted); font-size: 11.5px; }
+.qqwrap { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .qqwrap { grid-template-columns: minmax(0, 1fr); } }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--font-mono); overflow-wrap: anywhere; }
+.sr { position: absolute; left: -9999px; }
+@media (prefers-reduced-motion: no-preference) { button { transition: background 0.12s, filter 0.12s; } }
+</style>
+
+<main>
+  <header>
+    <h1>Vector Stats Lab</h1>
+    <p class="lede">Paste up to three number lists (separated by commas, spaces, semicolons or new lines). Everything below updates as you type. The textareas start with example data you can replace.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="h-in">
+    <div class="panel-head">
+      <h2 id="h-in">Vectors</h2>
+      <div class="toolbar">
+        <button type="button" id="btnExample">Load example</button>
+        <button type="button" id="btnClear">Clear all</button>
+      </div>
+    </div>
+    <div class="grid3">
+      <div class="field"><label for="in0"><span><span class="dot" style="background:var(--cx)"></span>X</span><span class="count" id="cnt0"></span></label><textarea id="in0" spellcheck="false" aria-label="Vector X values"></textarea></div>
+      <div class="field"><label for="in1"><span><span class="dot" style="background:var(--cy)"></span>Y</span><span class="count" id="cnt1"></span></label><textarea id="in1" spellcheck="false" aria-label="Vector Y values"></textarea></div>
+      <div class="field"><label for="in2"><span><span class="dot" style="background:var(--cz)"></span>Z</span><span class="count" id="cnt2"></span></label><textarea id="in2" spellcheck="false" aria-label="Vector Z values"></textarea></div>
+    </div>
+    <p class="hint" id="parseNote"></p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-sum">
+    <div class="panel-head"><h2 id="h-sum">Summary statistics</h2><span class="hint">StDev uses n−1, StDev.P uses n</span></div>
+    <div class="tablewrap"><table id="sumTable"></table></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-hist">
+    <div class="panel-head">
+      <h2 id="h-hist">Histograms</h2>
+      <div class="ctl"><label for="bins">Bins</label><input type="number" id="bins" min="2" max="100" placeholder="auto"><span class="hint">Curve = fitted distribution (pick one in the table below)</span></div>
+    </div>
+    <div class="grid3">
+      <div><div class="chart-title"><span class="dot" style="background:var(--cx)"></span>X</div><div class="chart" id="hist0"></div><div class="caption" id="histcap0"></div></div>
+      <div><div class="chart-title"><span class="dot" style="background:var(--cy)"></span>Y</div><div class="chart" id="hist1"></div><div class="caption" id="histcap1"></div></div>
+      <div><div class="chart-title"><span class="dot" style="background:var(--cz)"></span>Z</div><div class="chart" id="hist2"></div><div class="caption" id="histcap2"></div></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-cor">
+    <div class="panel-head"><h2 id="h-cor">Correlation and linear fit</h2><span class="hint">Pairs are matched by position; the longer vector is trimmed to the shorter one</span></div>
+    <div class="tablewrap"><table class="cm" id="corTable"></table></div>
+    <div class="grid3">
+      <div><div class="chart-title">X vs Y</div><div class="chart" id="sc0"></div><div class="caption" id="sccap0"></div></div>
+      <div><div class="chart-title">X vs Z</div><div class="chart" id="sc1"></div><div class="caption" id="sccap1"></div></div>
+      <div><div class="chart-title">Y vs Z</div><div class="chart" id="sc2"></div><div class="caption" id="sccap2"></div></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-fit">
+    <div class="panel-head"><h2 id="h-fit">Best fit among 18 distributions</h2><span class="hint">Maximum likelihood fit, ranked by AIC (lower is better). Click a row to overlay it and send it to the QQ plot.</span></div>
+    <div class="tabs" role="tablist" aria-label="Vector">
+      <button type="button" role="tab" id="tab0" aria-selected="true" data-tab="0">X</button>
+      <button type="button" role="tab" id="tab1" aria-selected="false" data-tab="1">Y</button>
+      <button type="button" role="tab" id="tab2" aria-selected="false" data-tab="2">Z</button>
+    </div>
+    <div class="tablewrap"><table class="fits" id="fitTable"></table></div>
+    <p class="hint" id="fitNote"></p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-qq">
+    <div class="panel-head">
+      <h2 id="h-qq">QQ plot</h2>
+      <div class="toolbar">
+        <div class="ctl"><label for="qqVec">Vector</label><select id="qqVec"><option value="0">X</option><option value="1">Y</option><option value="2">Z</option></select></div>
+        <div class="ctl"><label for="qqDist">Distribution</label><select id="qqDist"></select></div>
+      </div>
+    </div>
+    <div class="qqwrap">
+      <div><div class="chart" id="qq"></div></div>
+      <div>
+        <dl class="kv" id="qqInfo"></dl>
+        <p class="hint" style="margin-top:12px">Points on the diagonal mean the sample matches the fitted distribution. An S-shape signals heavier or lighter tails, a bow signals skew.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script id="math">
+/* ---------- special functions ---------- */
+function lgamma(x) {
+  const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  if (x < 0.5) return Math.log(Math.PI / Math.abs(Math.sin(Math.PI * x))) - lgamma(1 - x);
+  x -= 1;
+  let a = c[0];
+  const t = x + 7.5;
+  for (let i = 1; i < 9; i++) a += c[i] / (x + i);
+  return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
+}
+function digamma(x) {
+  let r = 0;
+  while (x < 6) { r -= 1 / x; x += 1; }
+  const f = 1 / (x * x);
+  return r + Math.log(x) - 0.5 / x - f * (1 / 12 - f * (1 / 120 - f * (1 / 252 - f * (1 / 240 - f / 132))));
+}
+function trigamma(x) {
+  let r = 0;
+  while (x < 6) { r += 1 / (x * x); x += 1; }
+  const f = 1 / (x * x);
+  return r + 1 / x + f / 2 + (1 / x) * f * (1 / 6 - f * (1 / 30 - f * (1 / 42 - f / 30)));
+}
+function gammaP(a, x) {
+  if (x <= 0) return 0;
+  const lg = lgamma(a);
+  if (x < a + 1) {
+    let ap = a, sum = 1 / a, del = sum;
+    for (let i = 0; i < 1000; i++) {
+      ap += 1; del *= x / ap; sum += del;
+      if (Math.abs(del) < Math.abs(sum) * 1e-14) break;
+    }
+    return Math.min(1, sum * Math.exp(-x + a * Math.log(x) - lg));
+  }
+  const tiny = 1e-300;
+  let b = x + 1 - a, c = 1 / tiny, d = 1 / b, h = d;
+  for (let i = 1; i < 1000; i++) {
+    const an = -i * (i - a);
+    b += 2;
+    d = an * d + b; if (Math.abs(d) < tiny) d = tiny;
+    c = b + an / c; if (Math.abs(c) < tiny) c = tiny;
+    d = 1 / d;
+    const del = d * c;
+    h *= del;
+    if (Math.abs(del - 1) < 1e-14) break;
+  }
+  return Math.max(0, 1 - Math.exp(-x + a * Math.log(x) - lg) * h);
+}
+function betacf(x, a, b) {
+  const tiny = 1e-300;
+  const qab = a + b, qap = a + 1, qam = a - 1;
+  let c = 1, d = 1 - qab * x / qap;
+  if (Math.abs(d) < tiny) d = tiny;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m <= 1000; m++) {
+    const m2 = 2 * m;
+    let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+    d = 1 + aa * d; if (Math.abs(d) < tiny) d = tiny;
+    c = 1 + aa / c; if (Math.abs(c) < tiny) c = tiny;
+    d = 1 / d; h *= d * c;
+    aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+    d = 1 + aa * d; if (Math.abs(d) < tiny) d = tiny;
+    c = 1 + aa / c; if (Math.abs(c) < tiny) c = tiny;
+    d = 1 / d;
+    const del = d * c;
+    h *= del;
+    if (Math.abs(del - 1) < 3e-14) break;
+  }
+  return h;
+}
+function betaI(x, a, b) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+  if (x < (a + 1) / (a + b + 2)) return bt * betacf(x, a, b) / a;
+  return 1 - bt * betacf(1 - x, b, a) / b;
+}
+function Phi(z) {
+  if (z === 0) return 0.5;
+  const p = gammaP(0.5, z * z / 2);
+  return z > 0 ? 0.5 * (1 + p) : 0.5 * (1 - p);
+}
+
+/* ---------- optimizer ---------- */
+function nelderMead(f, x0, maxIter = 1500, tol = 1e-11) {
+  const n = x0.length;
+  let pts = [x0.slice()];
+  for (let i = 0; i < n; i++) {
+    const p = x0.slice();
+    p[i] += Math.abs(p[i]) > 1e-8 ? 0.1 * Math.abs(p[i]) + 0.05 : 0.1;
+    pts.push(p);
+  }
+  let vals = pts.map(f);
+  const add = (a, b, t) => a.map((v, j) => v + t * (b[j] - v));
+  for (let it = 0; it < maxIter; it++) {
+    const idx = vals.map((v, i) => i).sort((a, b) => vals[a] - vals[b]);
+    pts = idx.map(i => pts[i]); vals = idx.map(i => vals[i]);
+    if (it > 20 && Math.abs(vals[n] - vals[0]) < tol * (1 + Math.abs(vals[0]))) break;
+    const c = new Array(n).fill(0);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) c[j] += pts[i][j] / n;
+    const xr = add(c, pts[n], -1), fr = f(xr);
+    if (fr < vals[0]) {
+      const xe = add(c, pts[n], -2), fe = f(xe);
+      if (fe < fr) { pts[n] = xe; vals[n] = fe; } else { pts[n] = xr; vals[n] = fr; }
+    } else if (fr < vals[n - 1]) {
+      pts[n] = xr; vals[n] = fr;
+    } else {
+      const xc = fr < vals[n] ? add(c, xr, 0.5) : add(c, pts[n], 0.5), fc = f(xc);
+      if (fc < Math.min(fr, vals[n])) { pts[n] = xc; vals[n] = fc; }
+      else for (let i = 1; i <= n; i++) { pts[i] = add(pts[0], pts[i], 0.5); vals[i] = f(pts[i]); }
+    }
+  }
+  let bi = 0;
+  for (let i = 1; i <= n; i++) if (vals[i] < vals[bi]) bi = i;
+  return { x: pts[bi], v: vals[bi] };
+}
+function mle(d, toP, lp, x0) {
+  const f = t => {
+    const p = toP(t);
+    let s = 0;
+    for (let i = 0; i < d.n; i++) { const v = lp(d.x[i], p); if (!(v > -Infinity)) return 1e300; s += v; }
+    return isFinite(s) ? -s : 1e300;
+  };
+  let r = nelderMead(f, x0);
+  r = nelderMead(f, r.x);
+  return toP(r.x);
+}
+
+/* ---------- descriptive stats ---------- */
+function describe(x) {
+  const n = x.length;
+  const s = x.slice().sort((a, b) => a - b);
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += x[i];
+  const mean = sum / n;
+  let ss = 0;
+  for (let i = 0; i < n; i++) ss += (x[i] - mean) * (x[i] - mean);
+  const median = n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  return { x, n, sorted: s, mean, median, sd: n > 1 ? Math.sqrt(ss / (n - 1)) : NaN, sdp: Math.sqrt(ss / n), min: s[0], max: s[n - 1] };
+}
+function linfit(a, b) {
+  const n = Math.min(a.length, b.length);
+  if (n < 2) return null;
+  let sa = 0, sb = 0;
+  for (let i = 0; i < n; i++) { sa += a[i]; sb += b[i]; }
+  const ma = sa / n, mb = sb / n;
+  let sxx = 0, syy = 0, sxy = 0;
+  for (let i = 0; i < n; i++) { const dx = a[i] - ma, dy = b[i] - mb; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
+  const r = sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : NaN;
+  const slope = sxx > 0 ? sxy / sxx : NaN;
+  return { n, r, r2: r * r, slope, intercept: mb - slope * ma, xs: a.slice(0, n), ys: b.slice(0, n) };
+}
+
+/* ---------- distributions ---------- */
+const LN2PI = Math.log(2 * Math.PI);
+const EULER = 0.5772156649015329;
+function gammaShape(s) {
+  if (!(s > 0)) return NaN;
+  let k = (3 - s + Math.sqrt((s - 3) * (s - 3) + 24 * s)) / (12 * s);
+  for (let i = 0; i < 40; i++) {
+    const step = (Math.log(k) - digamma(k) - s) / (1 / k - trigamma(k));
+    let nk = k - step;
+    if (!(nk > 0)) nk = k / 2;
+    if (Math.abs(nk - k) < 1e-12 * k) { k = nk; break; }
+    k = nk;
+  }
+  return k;
+}
+function meanLog(arr, fn) { let s = 0; for (let i = 0; i < arr.length; i++) s += Math.log(fn ? fn(arr[i]) : arr[i]); return s / arr.length; }
+const REAL = () => [-Infinity, Infinity];
+const POS = () => [0, Infinity];
+
+const DISTS = [
+  { id: 'normal', name: 'Normal', k: 2, ok: d => true,
+    fit: d => ({ mu: d.mean, s: d.sdp }),
+    lpdf: (x, p) => -0.5 * LN2PI - Math.log(p.s) - 0.5 * ((x - p.mu) / p.s) ** 2,
+    cdf: (x, p) => Phi((x - p.mu) / p.s), sup: REAL, fmt: p => `μ=${fmt(p.mu)}, σ=${fmt(p.s)}` },
+  { id: 'lognormal', name: 'Lognormal', k: 2, ok: d => d.min > 0,
+    fit: d => { const m = meanLog(d.x); let s = 0; for (const x of d.x) s += (Math.log(x) - m) ** 2; return { mu: m, s: Math.sqrt(s / d.n) }; },
+    lpdf: (x, p) => x <= 0 ? -Infinity : -Math.log(x) - Math.log(p.s) - 0.5 * LN2PI - 0.5 * ((Math.log(x) - p.mu) / p.s) ** 2,
+    cdf: (x, p) => x <= 0 ? 0 : Phi((Math.log(x) - p.mu) / p.s), sup: POS, fmt: p => `μ=${fmt(p.mu)}, σ=${fmt(p.s)}` },
+  { id: 'exponential', name: 'Exponential', k: 1, ok: d => d.min >= 0 && d.mean > 0,
+    fit: d => ({ lam: 1 / d.mean }),
+    lpdf: (x, p) => x < 0 ? -Infinity : Math.log(p.lam) - p.lam * x,
+    cdf: (x, p) => x <= 0 ? 0 : 1 - Math.exp(-p.lam * x), sup: POS, fmt: p => `λ=${fmt(p.lam)}` },
+  { id: 'gamma', name: 'Gamma', k: 2, ok: d => d.min > 0,
+    fit: d => { const k = gammaShape(Math.log(d.mean) - meanLog(d.x)); return { k, th: d.mean / k }; },
+    lpdf: (x, p) => x <= 0 ? -Infinity : (p.k - 1) * Math.log(x) - x / p.th - lgamma(p.k) - p.k * Math.log(p.th),
+    cdf: (x, p) => gammaP(p.k, x / p.th), sup: POS, fmt: p => `k=${fmt(p.k)}, θ=${fmt(p.th)}` },
+  { id: 'weibull', name: 'Weibull', k: 2, ok: d => d.min > 0,
+    fit: d => {
+      const mx = d.max, y = d.x.map(v => v / mx), ly = y.map(Math.log), ml = ly.reduce((a, b) => a + b, 0) / d.n;
+      const g = k => { let sn = 0, sd = 0; for (let i = 0; i < d.n; i++) { const w = Math.pow(y[i], k); sn += w * ly[i]; sd += w; } return sn / sd - 1 / k - ml; };
+      let a = 0.01, b = 200;
+      for (let i = 0; i < 200; i++) { const m = (a + b) / 2; if (g(m) < 0) a = m; else b = m; }
+      const k = (a + b) / 2;
+      let sw = 0; for (let i = 0; i < d.n; i++) sw += Math.pow(y[i], k);
+      return { k, lam: Math.pow(sw / d.n, 1 / k) * mx };
+    },
+    lpdf: (x, p) => x <= 0 ? -Infinity : Math.log(p.k / p.lam) + (p.k - 1) * Math.log(x / p.lam) - Math.pow(x / p.lam, p.k),
+    cdf: (x, p) => x <= 0 ? 0 : 1 - Math.exp(-Math.pow(x / p.lam, p.k)), sup: POS, fmt: p => `k=${fmt(p.k)}, λ=${fmt(p.lam)}` },
+  { id: 'beta', name: 'Beta (scaled to data range)', k: 4, ok: d => d.max > d.min,
+    fit: d => {
+      const range = d.max - d.min, pad = range / Math.max(1, d.n - 1), lo = d.min - pad, hi = d.max + pad;
+      const u = d.x.map(v => (v - lo) / (hi - lo));
+      const m = u.reduce((a, b) => a + b, 0) / d.n;
+      let v = 0; for (const t of u) v += (t - m) ** 2; v /= d.n;
+      let common = m * (1 - m) / v - 1; if (!(common > 0)) common = 2;
+      return mle(d, t => ({ a: Math.exp(t[0]), b: Math.exp(t[1]), lo, hi }), DISTS_BY_ID.beta.lpdf, [Math.log(m * common), Math.log((1 - m) * common)]);
+    },
+    lpdf: (x, p) => { const u = (x - p.lo) / (p.hi - p.lo); if (u <= 0 || u >= 1) return -Infinity; return (p.a - 1) * Math.log(u) + (p.b - 1) * Math.log(1 - u) - (lgamma(p.a) + lgamma(p.b) - lgamma(p.a + p.b)) - Math.log(p.hi - p.lo); },
+    cdf: (x, p) => betaI((x - p.lo) / (p.hi - p.lo), p.a, p.b), sup: p => [p.lo, p.hi], fmt: p => `α=${fmt(p.a)}, β=${fmt(p.b)}, [${fmt(p.lo)}, ${fmt(p.hi)}]` },
+  { id: 'uniform', name: 'Uniform', k: 2, ok: d => d.max > d.min,
+    fit: d => ({ a: d.min, b: d.max }),
+    lpdf: (x, p) => x < p.a || x > p.b ? -Infinity : -Math.log(p.b - p.a),
+    cdf: (x, p) => x <= p.a ? 0 : x >= p.b ? 1 : (x - p.a) / (p.b - p.a), sup: p => [p.a, p.b], fmt: p => `a=${fmt(p.a)}, b=${fmt(p.b)}` },
+  { id: 'logistic', name: 'Logistic', k: 2, ok: d => true,
+    fit: d => mle(d, t => ({ mu: t[0], s: Math.exp(t[1]) }), DISTS_BY_ID.logistic.lpdf, [d.mean, Math.log(d.sdp * Math.sqrt(3) / Math.PI)]),
+    lpdf: (x, p) => { const z = Math.abs((x - p.mu) / p.s); return -z - Math.log(p.s) - 2 * Math.log1p(Math.exp(-z)); },
+    cdf: (x, p) => 1 / (1 + Math.exp(-(x - p.mu) / p.s)), sup: REAL, fmt: p => `μ=${fmt(p.mu)}, s=${fmt(p.s)}` },
+  { id: 'cauchy', name: 'Cauchy', k: 2, ok: d => true,
+    fit: d => {
+      const q = (a) => d.sorted[Math.min(d.n - 1, Math.max(0, Math.floor(a * (d.n - 1))))];
+      const g0 = Math.max((q(0.75) - q(0.25)) / 2, 1e-6 * (Math.abs(d.mean) + 1));
+      return mle(d, t => ({ x0: t[0], g: Math.exp(t[1]) }), DISTS_BY_ID.cauchy.lpdf, [d.median, Math.log(g0)]);
+    },
+    lpdf: (x, p) => -Math.log(Math.PI * p.g) - Math.log1p(((x - p.x0) / p.g) ** 2),
+    cdf: (x, p) => 0.5 + Math.atan((x - p.x0) / p.g) / Math.PI, sup: REAL, fmt: p => `x₀=${fmt(p.x0)}, γ=${fmt(p.g)}` },
+  { id: 'laplace', name: 'Laplace', k: 2, ok: d => true,
+    fit: d => { let s = 0; for (const x of d.x) s += Math.abs(x - d.median); return { mu: d.median, b: Math.max(s / d.n, 1e-12) }; },
+    lpdf: (x, p) => -Math.log(2 * p.b) - Math.abs(x - p.mu) / p.b,
+    cdf: (x, p) => x < p.mu ? 0.5 * Math.exp((x - p.mu) / p.b) : 1 - 0.5 * Math.exp(-(x - p.mu) / p.b), sup: REAL, fmt: p => `μ=${fmt(p.mu)}, b=${fmt(p.b)}` },
+  { id: 'rayleigh', name: 'Rayleigh', k: 1, ok: d => d.min > 0,
+    fit: d => { let s = 0; for (const x of d.x) s += x * x; return { s: Math.sqrt(s / (2 * d.n)) }; },
+    lpdf: (x, p) => x <= 0 ? -Infinity : Math.log(x) - 2 * Math.log(p.s) - x * x / (2 * p.s * p.s),
+    cdf: (x, p) => x <= 0 ? 0 : 1 - Math.exp(-x * x / (2 * p.s * p.s)), sup: POS, fmt: p => `σ=${fmt(p.s)}` },
+  { id: 'chisq', name: 'Chi-square', k: 1, ok: d => d.min > 0,
+    fit: d => mle(d, t => ({ df: Math.exp(t[0]) }), DISTS_BY_ID.chisq.lpdf, [Math.log(d.mean)]),
+    lpdf: (x, p) => x <= 0 ? -Infinity : (p.df / 2 - 1) * Math.log(x) - x / 2 - (p.df / 2) * Math.LN2 - lgamma(p.df / 2),
+    cdf: (x, p) => gammaP(p.df / 2, x / 2), sup: POS, fmt: p => `df=${fmt(p.df)}` },
+  { id: 'student', name: "Student's t (location-scale)", k: 3, ok: d => true,
+    fit: d => mle(d, t => ({ mu: t[0], s: Math.exp(t[1]), nu: Math.exp(t[2]) }), DISTS_BY_ID.student.lpdf, [d.median, Math.log(d.sdp * 0.8), Math.log(5)]),
+    lpdf: (x, p) => { if (p.nu > 1e6) return -Infinity; const z = (x - p.mu) / p.s; return lgamma((p.nu + 1) / 2) - lgamma(p.nu / 2) - 0.5 * Math.log(p.nu * Math.PI) - Math.log(p.s) - (p.nu + 1) / 2 * Math.log1p(z * z / p.nu); },
+    cdf: (x, p) => { const z = (x - p.mu) / p.s, ib = betaI(p.nu / (p.nu + z * z), p.nu / 2, 0.5); return z > 0 ? 1 - 0.5 * ib : 0.5 * ib; }, sup: REAL, fmt: p => `μ=${fmt(p.mu)}, s=${fmt(p.s)}, ν=${fmt(p.nu)}` },
+  { id: 'gumbel', name: 'Gumbel (max)', k: 2, ok: d => true,
+    fit: d => { const b0 = Math.max(d.sdp * Math.sqrt(6) / Math.PI, 1e-9); return mle(d, t => ({ mu: t[0], b: Math.exp(t[1]) }), DISTS_BY_ID.gumbel.lpdf, [d.mean - EULER * b0, Math.log(b0)]); },
+    lpdf: (x, p) => { const z = (x - p.mu) / p.b; return -Math.log(p.b) - z - Math.exp(-z); },
+    cdf: (x, p) => Math.exp(-Math.exp(-(x - p.mu) / p.b)), sup: REAL, fmt: p => `μ=${fmt(p.mu)}, β=${fmt(p.b)}` },
+  { id: 'pareto', name: 'Pareto', k: 2, ok: d => d.min > 0 && d.max > d.min,
+    fit: d => { let s = 0; for (const x of d.x) s += Math.log(x / d.min); return { xm: d.min, a: d.n / s }; },
+    lpdf: (x, p) => x < p.xm ? -Infinity : Math.log(p.a) + p.a * Math.log(p.xm) - (p.a + 1) * Math.log(x),
+    cdf: (x, p) => x <= p.xm ? 0 : 1 - Math.pow(p.xm / x, p.a), sup: p => [p.xm, Infinity], fmt: p => `xₘ=${fmt(p.xm)}, α=${fmt(p.a)}` },
+  { id: 'loglogistic', name: 'Log-logistic', k: 2, ok: d => d.min > 0,
+    fit: d => mle(d, t => ({ a: Math.exp(t[0]), b: Math.exp(t[1]) }), DISTS_BY_ID.loglogistic.lpdf, [Math.log(d.median), Math.log(2)]),
+    lpdf: (x, p) => { if (x <= 0) return -Infinity; const z = x / p.a; return Math.log(p.b / p.a) + (p.b - 1) * Math.log(z) - 2 * Math.log1p(Math.pow(z, p.b)); },
+    cdf: (x, p) => x <= 0 ? 0 : 1 / (1 + Math.pow(x / p.a, -p.b)), sup: POS, fmt: p => `α=${fmt(p.a)}, β=${fmt(p.b)}` },
+  { id: 'invgauss', name: 'Inverse Gaussian', k: 2, ok: d => d.min > 0,
+    fit: d => { let s = 0; for (const x of d.x) s += 1 / x - 1 / d.mean; const lam = d.n / s; if (!(lam > 0)) throw new Error('fit'); return { mu: d.mean, lam }; },
+    lpdf: (x, p) => x <= 0 ? -Infinity : 0.5 * Math.log(p.lam / (2 * Math.PI * x ** 3)) - p.lam * (x - p.mu) ** 2 / (2 * p.mu * p.mu * x),
+    cdf: (x, p) => { if (x <= 0) return 0; const s = Math.sqrt(p.lam / x), t2 = Phi(-s * (x / p.mu + 1)); const v = Phi(s * (x / p.mu - 1)) + (t2 > 0 ? Math.exp(2 * p.lam / p.mu + Math.log(t2)) : 0); return Math.min(1, v); },
+    sup: POS, fmt: p => `μ=${fmt(p.mu)}, λ=${fmt(p.lam)}` },
+  { id: 'nakagami', name: 'Nakagami', k: 2, ok: d => d.min > 0,
+    fit: d => { const y = d.x.map(v => v * v), om = y.reduce((a, b) => a + b, 0) / d.n; const m = Math.max(0.5, gammaShape(Math.log(om) - meanLog(y))); return { m, om }; },
+    lpdf: (x, p) => x <= 0 ? -Infinity : Math.LN2 + p.m * Math.log(p.m) - lgamma(p.m) - p.m * Math.log(p.om) + (2 * p.m - 1) * Math.log(x) - p.m * x * x / p.om,
+    cdf: (x, p) => x <= 0 ? 0 : gammaP(p.m, p.m * x * x / p.om), sup: POS, fmt: p => `m=${fmt(p.m)}, Ω=${fmt(p.om)}` }
+];
+var DISTS_BY_ID = {};
+DISTS.forEach(d => { DISTS_BY_ID[d.id] = d; });
+
+function fmt(v, sig) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  const a = Math.abs(v);
+  if (a !== 0 && (a >= 1e7 || a < 1e-4)) return v.toExponential(3);
+  return String(Number(v.toPrecision(sig || 6)));
+}
+
+function fitAll(d) {
+  const out = { rows: [] };
+  if (!d || d.n < 2) { out.msg = 'Enter at least 2 numbers.'; return out; }
+  if (d.sdp === 0) { out.msg = 'All values are identical, so no distribution can be fitted.'; return out; }
+  for (const dist of DISTS) {
+    const row = { id: dist.id, name: dist.name, k: dist.k, dist, ok: false };
+    try {
+      if (!dist.ok(d)) { row.reason = 'data outside support'; out.rows.push(row); continue; }
+      const p = dist.fit(d);
+      let ll = 0;
+      for (let i = 0; i < d.n; i++) ll += dist.lpdf(d.x[i], p);
+      if (!isFinite(ll)) { row.reason = 'fit failed'; out.rows.push(row); continue; }
+      row.p = p; row.ll = ll; row.aic = 2 * dist.k - 2 * ll; row.ok = true;
+    } catch (e) { row.reason = 'fit failed'; }
+    out.rows.push(row);
+  }
+  const good = out.rows.filter(r => r.ok).sort((a, b) => a.aic - b.aic);
+  const bad = out.rows.filter(r => !r.ok);
+  if (good.length) {
+    const m = good[0].aic;
+    let sw = 0;
+    good.forEach(r => { r.delta = r.aic - m; r.w = Math.exp(-r.delta / 2); sw += r.w; });
+    good.forEach(r => { r.w /= sw; });
+  }
+  out.aicBest = good[0] || null;
+  out.rows = good.concat(bad);
+  out.best = good[0] || null;
+  return out;
+}
+
+function quantile(dist, p, prob, d) {
+  const sup = dist.sup(p);
+  let a = sup[0], b = sup[1];
+  const sd = d.sdp || 1;
+  if (!isFinite(a)) { let st = sd; a = d.median - st; for (let i = 0; i < 300 && dist.cdf(a, p) > prob; i++) { st *= 2; a = d.median - st; } }
+  if (!isFinite(b)) { let st = sd; b = d.median + st; for (let i = 0; i < 300 && dist.cdf(b, p) < prob; i++) { st *= 2; b = d.median + st; } }
+  for (let i = 0; i < 100; i++) { const m = (a + b) / 2; if (dist.cdf(m, p) < prob) a = m; else b = m; }
+  return (a + b) / 2;
+}
+</script>
+
+<script id="ui">
+(function () {
+  const $ = s => document.querySelector(s);
+  const NAMES = ['X', 'Y', 'Z'];
+  const COLORS = ['var(--cx)', 'var(--cy)', 'var(--cz)'];
+  const S = { vec: [[], [], []], d: [null, null, null], fit: [null, null, null], overlay: [null, null, null], tab: 0, lin: [] };
+
+  /* ---------- example data (seeded, so it is the same every time) ---------- */
+  function exampleData() {
+    let a = 20261116;
+    const rnd = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const nrm = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+    const X = [], Y = [], Z = [];
+    for (let i = 0; i < 40; i++) {
+      const x = Math.exp(2.3 + 0.38 * nrm());
+      X.push(+x.toFixed(2));
+      Y.push(+(1.7 * x + 6 + 3.5 * nrm()).toFixed(2));
+      Z.push(+(48 - 0.9 * x + 4.5 * nrm()).toFixed(2));
+    }
+    return [X, Y, Z];
+  }
+  function setExample() { const ex = exampleData(); ex.forEach((v, i) => { $('#in' + i).value = v.join(', '); }); }
+
+  function parse(text) {
+    const m = text.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g);
+    return m ? m.map(Number).filter(isFinite) : [];
+  }
+
+  /* ---------- chart helpers ---------- */
+  function niceTicks(lo, hi, cnt) {
+    if (lo === hi) { lo -= 1; hi += 1; }
+    const raw = (hi - lo) / cnt, mag = Math.pow(10, Math.floor(Math.log10(raw))), nm = raw / mag;
+    const step = (nm < 1.5 ? 1 : nm < 3 ? 2 : nm < 7 ? 5 : 10) * mag;
+    const out = [];
+    for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + step * 1e-9; v += step) out.push(+v.toPrecision(12));
+    return out;
+  }
+  const tickFmt = v => fmt(v, 4);
+  function chart(el, o) {
+    const w = Math.max(260, Math.floor(el.clientWidth)), h = o.h || 250;
+    const ml = o.ml || 52, mr = 14, mt = 12, mb = 44;
+    const pw = w - ml - mr, ph = h - mt - mb, xd = o.xd, yd = o.yd;
+    const sx = v => ml + (v - xd[0]) / (xd[1] - xd[0]) * pw;
+    const sy = v => mt + ph - (v - yd[0]) / (yd[1] - yd[0]) * ph;
+    const xt = niceTicks(xd[0], xd[1], Math.max(3, Math.floor(pw / 85)));
+    const yt = niceTicks(yd[0], yd[1], 5);
+    const cid = 'clip-' + el.id;
+    let s = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${o.label}">`;
+    s += `<defs><clipPath id="${cid}"><rect x="${ml}" y="${mt}" width="${pw}" height="${ph}"/></clipPath></defs>`;
+    yt.forEach(v => { const y = sy(v); if (y < mt - 1 || y > mt + ph + 1) return; s += `<line class="gl" x1="${ml}" x2="${ml + pw}" y1="${y}" y2="${y}"/><text class="tk" x="${ml - 7}" y="${y + 4}" text-anchor="end">${tickFmt(v)}</text>`; });
+    xt.forEach(v => { const x = sx(v); if (x < ml - 1 || x > ml + pw + 1) return; s += `<line class="ax" x1="${x}" x2="${x}" y1="${mt + ph}" y2="${mt + ph + 4}"/><text class="tk" x="${x}" y="${mt + ph + 17}" text-anchor="middle">${tickFmt(v)}</text>`; });
+    s += `<line class="ax" x1="${ml}" x2="${ml + pw}" y1="${mt + ph}" y2="${mt + ph}"/><line class="ax" x1="${ml}" x2="${ml}" y1="${mt}" y2="${mt + ph}"/>`;
+    s += `<g clip-path="url(#${cid})">${o.body({ sx, sy, pw, ph })}</g>`;
+    s += `<text class="al" x="${ml + pw / 2}" y="${h - 6}" text-anchor="middle">${o.xl || ''}</text>`;
+    s += `<text class="al" transform="translate(13 ${mt + ph / 2}) rotate(-90)" text-anchor="middle">${o.yl || ''}</text>`;
+    s += '</svg>';
+    el.innerHTML = s;
+  }
+  const empty = (el, msg) => { el.innerHTML = `<div class="empty">${msg}</div>`; };
+
+  /* ---------- sections ---------- */
+  function renderSummary() {
+    const rows = [['n', d => d.n, 0], ['Mean', d => d.mean], ['Median', d => d.median], ['StDev (sample)', d => d.sd], ['StDev.P (population)', d => d.sdp], ['Min', d => d.min], ['Max', d => d.max]];
+    let h = '<thead><tr><th>Statistic</th>' + NAMES.map((n, i) => `<th><span class="dot" style="background:${COLORS[i]}"></span>${n}</th>`).join('') + '</tr></thead><tbody>';
+    rows.forEach(r => { h += `<tr><td>${r[0]}</td>` + S.d.map(d => `<td>${d ? (r[2] === 0 ? d.n : fmt(r[1](d))) : '—'}</td>`).join('') + '</tr>'; });
+    $('#sumTable').innerHTML = h + '</tbody>';
+  }
+
+  function drawHist(i) {
+    const el = $('#hist' + i), cap = $('#histcap' + i), d = S.d[i];
+    if (!d || d.n < 2) { empty(el, 'Enter at least 2 numbers in ' + NAMES[i] + '.'); cap.textContent = ''; return; }
+    const bi = parseInt($('#bins').value, 10);
+    const nb = bi >= 2 ? Math.min(100, bi) : Math.min(40, Math.max(5, Math.ceil(Math.log2(d.n)) + 1));
+    let lo = d.min, hi = d.max; if (lo === hi) { lo -= 0.5; hi += 0.5; }
+    const bw = (hi - lo) / nb, counts = new Array(nb).fill(0);
+    d.x.forEach(x => { counts[Math.min(nb - 1, Math.floor((x - lo) / bw))]++; });
+    const dens = counts.map(c => c / (d.n * bw)), dmax = Math.max.apply(null, dens);
+    const row = S.fit[i] && S.fit[i].rows.find(r => r.id === S.overlay[i] && r.ok);
+    const curve = [];
+    if (row) for (let k = 0; k <= 200; k++) { const x = lo + (hi - lo) * k / 200, y = Math.exp(row.dist.lpdf(x, row.p)); curve.push([x, isFinite(y) ? y : null]); }
+    let ymax = dmax * 1.15;
+    if (row) { const pm = Math.max.apply(null, curve.map(c => c[1] || 0)); ymax = Math.max(ymax, Math.min(pm * 1.05, dmax * 3)); }
+    chart(el, {
+      xd: [lo, hi], yd: [0, ymax], xl: NAMES[i], yl: 'Density', h: 240, ml: 56,
+      label: `Histogram of ${NAMES[i]}${row ? ' with ' + row.name + ' fit' : ''}`,
+      body: ({ sx, sy }) => {
+        let s = '';
+        counts.forEach((c, k) => { const x0 = sx(lo + k * bw), x1 = sx(lo + (k + 1) * bw), y = sy(dens[k]); s += `<rect x="${x0 + 0.5}" y="${y}" width="${Math.max(0.5, x1 - x0 - 1)}" height="${sy(0) - y}" fill="${COLORS[i]}" fill-opacity="0.7"/>`; });
+        if (row) { let path = '', pen = false; curve.forEach(c => { if (c[1] === null) { pen = false; return; } path += (pen ? 'L' : 'M') + sx(c[0]).toFixed(1) + ' ' + sy(c[1]).toFixed(1); pen = true; }); s += `<path d="${path}" fill="none" stroke="var(--fit)" stroke-width="2.2"/>`; }
+        return s;
+      }
+    });
+    cap.textContent = row ? `Curve: ${row.name} · AIC ${fmt(row.aic, 5)}${row === S.fit[i].best ? ' (best)' : ''} · ${nb} bins` : `${nb} bins · no distribution fits this data`;
+  }
+
+  function renderCorr() {
+    const pairs = [[0, 1], [0, 2], [1, 2]];
+    S.lin = pairs.map(p => linfit(S.vec[p[0]], S.vec[p[1]]));
+    const L = {};
+    pairs.forEach((p, k) => { L[p[0] + '' + p[1]] = S.lin[k]; L[p[1] + '' + p[0]] = S.lin[k]; });
+    let h = '<thead><tr><th></th>' + NAMES.map(n => `<th>${n}</th>`).join('') + '</tr></thead><tbody>';
+    for (let a = 0; a < 3; a++) {
+      h += `<tr><td><b>${NAMES[a]}</b></td>`;
+      for (let b = 0; b < 3; b++) {
+        if (a === b) { h += '<td style="color:var(--muted)">1<span class="r2">&nbsp;</span></td>'; continue; }
+        const l = L[a + '' + b];
+        if (!l || !isFinite(l.r)) { h += '<td>—<span class="r2">&nbsp;</span></td>'; continue; }
+        const pct = Math.round(Math.abs(l.r) * 45);
+        h += `<td style="background:color-mix(in srgb, var(--accent) ${pct}%, var(--surface))">r = ${fmt(l.r, 4)}<span class="r2">R² = ${fmt(l.r2, 4)}</span></td>`;
+      }
+      h += '</tr>';
+    }
+    $('#corTable').innerHTML = h + '</tbody>';
+    pairs.forEach((p, k) => drawScatter(k, p));
+  }
+  function drawScatter(k, p) {
+    const el = $('#sc' + k), cap = $('#sccap' + k), l = S.lin[k];
+    if (!l) { empty(el, `Need at least 2 values in both ${NAMES[p[0]]} and ${NAMES[p[1]]}.`); cap.textContent = ''; return; }
+    const ext = a => { let lo = Math.min.apply(null, a), hi = Math.max.apply(null, a); if (lo === hi) { lo -= 1; hi += 1; } const pd = (hi - lo) * 0.06; return [lo - pd, hi + pd]; };
+    const xd = ext(l.xs), yd = ext(l.ys);
+    chart(el, {
+      xd, yd, xl: NAMES[p[0]], yl: NAMES[p[1]], h: 250, ml: 56,
+      label: `Scatter of ${NAMES[p[1]]} against ${NAMES[p[0]]} with best-fit line`,
+      body: ({ sx, sy }) => {
+        let s = '';
+        for (let i = 0; i < l.n; i++) s += `<circle cx="${sx(l.xs[i]).toFixed(1)}" cy="${sy(l.ys[i]).toFixed(1)}" r="3.6" fill="var(--accent)" fill-opacity="0.55" stroke="var(--accent)" stroke-width="1"/>`;
+        if (isFinite(l.slope)) { const y0 = l.intercept + l.slope * xd[0], y1 = l.intercept + l.slope * xd[1]; s += `<line x1="${sx(xd[0])}" y1="${sy(y0)}" x2="${sx(xd[1])}" y2="${sy(y1)}" stroke="var(--fit)" stroke-width="2.2"/>`; }
+        return s;
+      }
+    });
+    cap.textContent = isFinite(l.slope) ? `${NAMES[p[1]]} = ${fmt(l.intercept, 4)} ${l.slope < 0 ? '−' : '+'} ${fmt(Math.abs(l.slope), 4)}·${NAMES[p[0]]} · r = ${fmt(l.r, 4)} · R² = ${fmt(l.r2, 4)} · n = ${l.n}` : 'No variation in one of the vectors, so no line can be fitted.';
+  }
+
+  function renderFits() {
+    ['0', '1', '2'].forEach(i => $('#tab' + i).setAttribute('aria-selected', String(+i === S.tab)));
+    const f = S.fit[S.tab], t = $('#fitTable');
+    $('#fitNote').textContent = '';
+    if (!f || !f.rows.length) { t.innerHTML = `<tbody><tr><td style="font-family:var(--font-ui);color:var(--muted)">${f && f.msg ? f.msg : 'Enter at least 2 numbers.'}</td></tr></tbody>`; return; }
+    let h = '<thead><tr><th>#</th><th class="name">Distribution</th><th class="name">Parameters (MLE)</th><th>k</th><th>logL</th><th>AIC</th><th>ΔAIC</th><th>Weight</th></tr></thead><tbody>';
+    let rank = 0;
+    f.rows.forEach(r => {
+      if (!r.ok) { h += `<tr class="na"><td>—</td><td class="name">${r.name}</td><td class="params" colspan="6">not applicable (${r.reason})</td></tr>`; return; }
+      rank++;
+      const sel = S.overlay[S.tab] === r.id ? ' sel' : '';
+      h += `<tr class="${sel.trim()}" tabindex="0" data-id="${r.id}"><td>${rank}</td><td class="name">${r.name}${rank === 1 ? '<span class="badge">' + (r === f.aicBest ? 'best' : 'selected') + '</span>' : ''}</td><td class="params">${r.dist.fmt(r.p)}</td><td>${r.k}</td><td>${fmt(r.ll, 6)}</td><td>${fmt(r.aic, 6)}</td><td>${fmt(r.delta, 4)}</td><td><span class="wbar" style="width:${Math.max(1, Math.round(r.w * 48))}px"></span>${(r.w * 100).toFixed(1)}%</td></tr>`;
+    });
+    t.innerHTML = h + '</tbody>';
+    if (f.aicBest && f.best && f.best !== f.aicBest) $('#fitNote').textContent = `Beta is pinned to the top as the selected model. The AIC and ΔAIC columns are the real values: the lowest AIC is ${f.aicBest.name} (${fmt(f.aicBest.aic, 6)}), and Beta is ${fmt(f.best.delta, 4)} higher.`;
+  }
+
+  function renderQQ() {
+    const i = +$('#qqVec').value, id = $('#qqDist').value, d = S.d[i], f = S.fit[i], el = $('#qq'), info = $('#qqInfo');
+    info.innerHTML = '';
+    if (!d || d.n < 2 || !f || !f.rows.length) { empty(el, 'Enter at least 2 numbers in ' + NAMES[i] + '.'); return; }
+    const row = id === 'best' ? f.best : f.rows.find(r => r.id === id);
+    if (!row || !row.ok) { empty(el, `${row ? row.name : 'This distribution'} is not applicable to ${NAMES[i]}${row && row.reason ? ' (' + row.reason + ')' : ''}.`); return; }
+    const theo = d.sorted.map((_, j) => quantile(row.dist, row.p, (j + 0.5) / d.n, d));
+    const pad = (d.max - d.min || 1) * 0.08, dom = [d.min - pad, d.max + pad];
+    let sa = 0, sb = 0, n = 0;
+    theo.forEach((t, j) => { if (isFinite(t)) { sa += t; sb += d.sorted[j]; n++; } });
+    const ma = sa / n, mb = sb / n;
+    let sxx = 0, syy = 0, sxy = 0;
+    theo.forEach((t, j) => { if (isFinite(t)) { const a = t - ma, b = d.sorted[j] - mb; sxx += a * a; syy += b * b; sxy += a * b; } });
+    const qr2 = sxx > 0 && syy > 0 ? sxy * sxy / (sxx * syy) : NaN;
+    const w = Math.max(260, el.clientWidth);
+    chart(el, {
+      xd: dom, yd: dom, h: Math.round(Math.min(440, Math.max(300, w * 0.85))), ml: 58,
+      xl: `Theoretical quantiles (${row.name})`, yl: `Sample quantiles (${NAMES[i]})`,
+      label: `QQ plot of ${NAMES[i]} against ${row.name}`,
+      body: ({ sx, sy }) => {
+        let s = `<line x1="${sx(dom[0])}" y1="${sy(dom[0])}" x2="${sx(dom[1])}" y2="${sy(dom[1])}" stroke="var(--fit)" stroke-width="2" stroke-dasharray="6 4"/>`;
+        theo.forEach((t, j) => { if (isFinite(t)) s += `<circle cx="${sx(t).toFixed(1)}" cy="${sy(d.sorted[j]).toFixed(1)}" r="3.6" fill="${COLORS[i]}" fill-opacity="0.65" stroke="${COLORS[i]}" stroke-width="1"/>`; });
+        return s;
+      }
+    });
+    const rk = f.rows.filter(r => r.ok).indexOf(row) + 1;
+    info.innerHTML = `<dt>Vector</dt><dd>${NAMES[i]} (n = ${d.n})</dd><dt>Distribution</dt><dd>${row.name}</dd><dt>Parameters</dt><dd>${row.dist.fmt(row.p)}</dd><dt>AIC</dt><dd>${fmt(row.aic, 6)} (rank ${rk} of ${f.rows.filter(r => r.ok).length})</dd><dt>QQ correlation R²</dt><dd>${fmt(qr2, 5)}</dd>`;
+  }
+
+  /* ---------- orchestration ---------- */
+  function analyze() {
+    const notes = [];
+    for (let i = 0; i < 3; i++) {
+      const txt = $('#in' + i).value;
+      S.vec[i] = parse(txt);
+      $('#cnt' + i).textContent = S.vec[i].length + ' values';
+      S.d[i] = S.vec[i].length ? describe(S.vec[i]) : null;
+      S.fit[i] = fitAll(S.d[i]);
+      const keep = S.fit[i].rows.find(r => r.id === S.overlay[i] && r.ok);
+      if (!keep) S.overlay[i] = S.fit[i].best ? S.fit[i].best.id : null;
+    }
+    const lens = S.vec.map(v => v.length);
+    $('#parseNote').textContent = (lens[0] !== lens[1] || lens[1] !== lens[2]) && lens.every(n => n > 0) ? `Vectors have different lengths (${lens.join(', ')}). Correlation uses the first ${Math.min.apply(null, lens)} values of each pair.` : 'Numbers are read as plain decimals with a dot (3.14). A comma always separates values.';
+    renderSummary();
+    [0, 1, 2].forEach(drawHist);
+    renderCorr();
+    renderFits();
+    const cur = $('#qqDist').value;
+    const best = S.fit[+$('#qqVec').value] && S.fit[+$('#qqVec').value].best;
+    $('#qqDist').querySelector('option[value="best"]').textContent = 'Best AIC' + (best ? ' (' + best.name + ')' : '');
+    $('#qqDist').value = cur;
+    renderQQ();
+  }
+  function redrawCharts() { [0, 1, 2].forEach(drawHist); renderCorr(); renderQQ(); }
+
+  /* ---------- wiring ---------- */
+  const sel = $('#qqDist');
+  sel.innerHTML = '<option value="best">Best AIC</option>' + DISTS.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+  let timer = null;
+  [0, 1, 2].forEach(i => $('#in' + i).addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(analyze, 250); }));
+  $('#bins').addEventListener('input', () => [0, 1, 2].forEach(drawHist));
+  $('#btnExample').addEventListener('click', () => { setExample(); analyze(); });
+  $('#btnClear').addEventListener('click', () => { [0, 1, 2].forEach(i => { $('#in' + i).value = ''; }); analyze(); });
+  $('#qqVec').addEventListener('change', () => { $('#qqDist').value = 'best'; analyze(); });
+  $('#qqDist').addEventListener('change', renderQQ);
+  document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => { S.tab = +b.dataset.tab; renderFits(); }));
+  function pickRow(tr) {
+    if (!tr || !tr.dataset.id) return;
+    S.overlay[S.tab] = tr.dataset.id;
+    $('#qqVec').value = String(S.tab);
+    $('#qqDist').value = tr.dataset.id;
+    drawHist(S.tab); renderFits(); renderQQ();
+  }
+  $('#fitTable').addEventListener('click', e => pickRow(e.target.closest('tr')));
+  $('#fitTable').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickRow(e.target.closest('tr')); } });
+
+  let lastW = 0;
+  if (window.ResizeObserver) new ResizeObserver(() => { const w = Math.round(document.body.clientWidth); if (w !== lastW) { lastW = w; redrawCharts(); } }).observe(document.body);
+
+  setExample();
+  analyze();
+})();
+</script>
+
+</body></html>
